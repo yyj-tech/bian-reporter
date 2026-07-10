@@ -1,0 +1,81 @@
+name: Daily Binance Auto-Invest Report
+
+on:
+  schedule:
+    # 02:00 UTC = 10:00 Asia/Shanghai. GitHub schedule can be delayed a few minutes.
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+    inputs:
+      report:
+        description: "Report to send"
+        required: true
+        default: "auto_invest"
+        type: choice
+        options:
+          - auto_invest
+          - asset_total
+
+jobs:
+  send-report:
+    name: Generate and email Binance report
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    env:
+      BINANCE_API_KEY: ${{ secrets.BINANCE_API_KEY }}
+      BINANCE_API_SECRET: ${{ secrets.BINANCE_API_SECRET }}
+      REPORT_SMTP_FROM: ${{ secrets.REPORT_SMTP_FROM }}
+      REPORT_SMTP_TO: ${{ secrets.REPORT_SMTP_TO }}
+      REPORT_SMTP_PASSWORD: ${{ secrets.REPORT_SMTP_PASSWORD }}
+      REPORT_SMTP_SERVER: ${{ secrets.REPORT_SMTP_SERVER || 'smtp.163.com' }}
+      REPORT_SMTP_PORT: ${{ secrets.REPORT_SMTP_PORT || '25' }}
+      REPORT_SMTP_ENABLE_SSL: ${{ secrets.REPORT_SMTP_ENABLE_SSL || 'True' }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Validate required secrets
+        shell: pwsh
+        run: |
+          $missing = @()
+          foreach ($name in @(
+            "BINANCE_API_KEY",
+            "BINANCE_API_SECRET",
+            "REPORT_SMTP_FROM",
+            "REPORT_SMTP_TO",
+            "REPORT_SMTP_PASSWORD"
+          )) {
+            if (-not [Environment]::GetEnvironmentVariable($name)) {
+              $missing += $name
+            }
+          }
+
+          if ($missing.Count -gt 0) {
+            throw "Missing GitHub Secrets: $($missing -join ', ')"
+          }
+
+      - name: Send Auto-Invest report
+        if: ${{ github.event_name == 'schedule' || inputs.report == 'auto_invest' }}
+        shell: pwsh
+        run: |
+          ./research-auto-invest-cost/run_daily_auto_invest_report.ps1
+
+      - name: Send total asset report
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.report == 'asset_total' }}
+        shell: pwsh
+        run: |
+          ./run_daily_binance_report.ps1
+
+      - name: Upload run artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: binance-report-output
+          path: |
+            binance_asset_report_zh.md
+            logs/*.log
+            research-auto-invest-cost/auto_invest_history_2026.json
+            research-auto-invest-cost/auto_invest_enriched_report_2026.md
+            research-auto-invest-cost/logs/*.log
+          if-no-files-found: ignore

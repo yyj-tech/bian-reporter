@@ -1,0 +1,9 @@
+.env.local
+logs/
+binance_asset_report.md
+binance_asset_report_zh.md
+research-auto-invest-cost/logs/
+research-auto-invest-cost/auto_invest_history*.json
+research-auto-invest-cost/auto_invest_cost_summary*.md
+research-auto-invest-cost/auto_invest_enriched_report*.md
+research-auto-invest-cost/email_preview.html
