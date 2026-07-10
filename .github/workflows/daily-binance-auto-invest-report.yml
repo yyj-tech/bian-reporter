@@ -18,7 +18,10 @@ on:
 jobs:
   send-report:
     name: Generate and email Binance report
-    runs-on: windows-latest
+    # GitHub-hosted runners can be blocked by Binance location restrictions.
+    # Set repository variable REPORT_RUNNER_LABELS to a JSON label array such as
+    # ["self-hosted","Linux","binance-reporter"] to run this workflow on your own runner.
+    runs-on: ${{ fromJSON(vars.REPORT_RUNNER_LABELS || '["windows-latest"]') }}
     timeout-minutes: 30
 
     env:

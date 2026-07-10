@@ -51,7 +51,32 @@ REPORT_SMTP_ENABLE_SSL=True
 ## Binance API 注意事项
 
 - API Key 只给读取权限，不要给交易和提现权限。
-- 如果 Binance API Key 开了 IP 白名单，GitHub-hosted runner 的出口 IP 不固定，可能会调用失败。需要关闭白名单、改用自托管 runner，或迁到有固定出口 IP 的云服务器/云函数。
+- GitHub-hosted runner 可能被 Binance 判定为受限制地区，报错类似：`Service unavailable from a restricted location`。这时官方 GitHub runner 无法直接调用 Binance API，需要改用自托管 runner。
+- 如果 Binance API Key 开了 IP 白名单，GitHub-hosted runner 的出口 IP 不固定，也可能会调用失败。需要关闭白名单、改用自托管 runner，或迁到有固定出口 IP 的云服务器/云函数。
+
+## 使用自托管 runner
+
+如果 GitHub-hosted runner 被 Binance 拦截，可以在一台允许访问 Binance API 的云服务器上安装 GitHub Actions self-hosted runner，然后让本 workflow 跑在那台机器上。
+
+在 GitHub 仓库设置变量：
+
+```text
+Settings -> Secrets and variables -> Actions -> Variables -> New repository variable
+```
+
+添加：
+
+```text
+REPORT_RUNNER_LABELS=["self-hosted","Linux","binance-reporter"]
+```
+
+其中 `binance-reporter` 是你给 self-hosted runner 设置的 label。也可以使用 Windows runner，例如：
+
+```text
+REPORT_RUNNER_LABELS=["self-hosted","Windows","binance-reporter"]
+```
+
+Linux runner 需要安装 PowerShell 7，并确保命令 `pwsh` 可用。
 
 ## 第一次验证
 
