@@ -9,6 +9,7 @@
 默认行为：
 
 - 每天北京时间 10:00 运行 Auto-Invest 定投成本报告。
+- 默认使用 GitHub 官方 `macos-latest` hosted runner。此前 `windows-latest` 已被 Binance 返回 restricted location。
 - 可在 GitHub Actions 页面手动运行，并选择发送 `auto_invest` 或 `asset_total`。
 - 运行结果和日志会作为 workflow artifact 上传。
 
@@ -53,6 +54,7 @@ REPORT_SMTP_ENABLE_SSL=True
 - API Key 只给读取权限，不要给交易和提现权限。
 - GitHub-hosted runner 可能被 Binance 判定为受限制地区，报错类似：`Service unavailable from a restricted location`。这时官方 GitHub runner 无法直接调用 Binance API，需要改用自托管 runner。
 - 如果 Binance API Key 开了 IP 白名单，GitHub-hosted runner 的出口 IP 不固定，也可能会调用失败。需要关闭白名单、改用自托管 runner，或迁到有固定出口 IP 的云服务器/云函数。
+- 当前 workflow 默认先试 GitHub 官方 `macos-latest` runner，因为 GitHub 文档说明 Windows/Ubuntu hosted runners 使用 Azure IP 范围，而 macOS runner 的宿主不同。如果 macOS 仍被 Binance 拦截，就不能靠标准 hosted runner 配置解决。
 
 ## 使用自托管 runner
 

@@ -21,7 +21,9 @@ jobs:
     # GitHub-hosted runners can be blocked by Binance location restrictions.
     # Set repository variable REPORT_RUNNER_LABELS to a JSON label array such as
     # ["self-hosted","Linux","binance-reporter"] to run this workflow on your own runner.
-    runs-on: ${{ fromJSON(vars.REPORT_RUNNER_LABELS || '["windows-latest"]') }}
+    # The default is macos-latest because Windows/Ubuntu hosted runners use Azure IP ranges
+    # that Binance may reject as restricted.
+    runs-on: ${{ fromJSON(vars.REPORT_RUNNER_LABELS || '["macos-latest"]') }}
     timeout-minutes: 30
 
     env:
