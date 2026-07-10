@@ -173,3 +173,15 @@ foreach ($type in $PlanType) {
 } | ConvertTo-Json -Depth 30 | Set-Content -Path $OutputPath -Encoding utf8
 
 Write-Output ("Auto-Invest history sample written to {0}" -f (Resolve-Path $OutputPath))
+
+$failedResults = @($results | Where-Object { -not $_.ok })
+if ($failedResults.Count -gt 0) {
+    $errorSummaries = @()
+    foreach ($result in $failedResults) {
+        foreach ($errorItem in @($result.error)) {
+            $errorSummaries += ("planType={0}, window={1}..{2}, page={3}: {4}" -f $result.planType, $errorItem.windowStart, $errorItem.windowEnd, $errorItem.page, $errorItem.error)
+        }
+    }
+
+    throw ("Auto-Invest history query failed. Details were written to {0}. {1}" -f (Resolve-Path $OutputPath), ($errorSummaries -join " | "))
+}
