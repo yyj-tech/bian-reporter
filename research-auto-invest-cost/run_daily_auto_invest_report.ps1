@@ -3,7 +3,8 @@ param(
     [string]$HistoryPath = $(Join-Path $PSScriptRoot "auto_invest_history_2026.json"),
     [string]$ReportPath = $(Join-Path $PSScriptRoot "auto_invest_enriched_report_2026.md"),
     [string]$Subject = "",
-    [string]$LogDirectory = $(Join-Path $PSScriptRoot "logs")
+    [string]$LogDirectory = $(Join-Path $PSScriptRoot "logs"),
+    [string[]]$PlanType = @("PORTFOLIO")
 )
 
 $ErrorActionPreference = "Stop"
@@ -30,7 +31,8 @@ try {
 
     & (Join-Path $PSScriptRoot "probe_auto_invest_history.ps1") `
         -StartDate $StartDate `
-        -OutputPath $HistoryPath
+        -OutputPath $HistoryPath `
+        -PlanType $PlanType
 
     & (Join-Path $PSScriptRoot "build_enriched_auto_invest_report.ps1") `
         -InputPath $HistoryPath `
