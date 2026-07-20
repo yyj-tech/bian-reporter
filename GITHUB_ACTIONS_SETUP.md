@@ -39,6 +39,21 @@ REPORT_SMTP_PORT
 REPORT_SMTP_ENABLE_SSL
 ```
 
+可选 Variables：
+
+```text
+BINANCE_BASE_URL
+REPORT_RUNNER_LABELS
+```
+
+如果要试 Binance.US，设置：
+
+```text
+BINANCE_BASE_URL=https://api.binance.us
+```
+
+注意：Binance.US 和 Binance 国际站是不同平台。现货行情和部分现货账户 API 可以尝试，但 Auto-Invest / Simple Earn 相关 `/sapi` 接口大概率不兼容。
+
 如果不配置可选项，默认使用：
 
 ```text

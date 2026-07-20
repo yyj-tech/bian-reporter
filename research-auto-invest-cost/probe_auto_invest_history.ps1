@@ -11,7 +11,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$BaseUrl = "https://api.binance.com"
+$BaseUrl = if ($env:BINANCE_BASE_URL) { $env:BINANCE_BASE_URL.TrimEnd("/") } else { "https://api.binance.com" }
 
 function Get-ConfigValue {
     param([string]$Name)

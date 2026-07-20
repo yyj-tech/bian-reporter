@@ -52,7 +52,7 @@ if (-not $ApiKey -or -not $ApiSecret) {
     throw "Missing BINANCE_API_KEY or BINANCE_API_SECRET."
 }
 
-$BaseUrl = "https://api.binance.com"
+$BaseUrl = if ($env:BINANCE_BASE_URL) { $env:BINANCE_BASE_URL.TrimEnd("/") } else { "https://api.binance.com" }
 
 function Get-Signature {
     param(
