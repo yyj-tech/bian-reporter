@@ -465,31 +465,39 @@ def report_to_html(context: dict[str, object] | None = None) -> str:
         return html.escape(str(value))
 
     pnl_class = "positive" if total_pnl >= 0 else "negative"
-    asset_rows = []
+    pnl_color = "#047857" if total_pnl >= 0 else "#b91c1c"
+    asset_cards = []
     for row in summary:
         row_pnl = float(row.get("PnlUsdt") or 0)
         row_rate = float(row.get("PnlRate") or 0)
-        row_class = "positive" if row_pnl >= 0 else "negative"
-        asset_rows.append(
-            "<tr>"
-            f'<td class="left strong">{escaped(row.get("Asset") or "-")}</td>'
-            f'<td>{escaped(row.get("Count") or 0)}</td>'
-            f'<td>{optional_number(row.get("TotalCostUsdt"))}</td>'
-            f'<td>{optional_number(row.get("CurrentValueUsdt"))}</td>'
-            f'<td class="{row_class}">{escaped(pnl_text(row_pnl))}</td>'
-            f'<td class="{row_class}">{escaped(percentage(row_rate))}</td>'
-            "</tr>"
+        row_color = "#047857" if row_pnl >= 0 else "#b91c1c"
+        asset_cards.append(
+            '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" '
+            'style="width:100%;margin:0 0 10px;border:1px solid #e5e7eb;border-radius:6px;background:#ffffff">'
+            '<tr>'
+            f'<td style="padding:12px 14px 8px;font-size:16px;font-weight:700;color:#0f172a">{escaped(row.get("Asset") or "-")}</td>'
+            f'<td align="right" style="padding:12px 14px 8px;font-size:14px;font-weight:700;color:{row_color}">'
+            f'{escaped(pnl_text(row_pnl))} · {escaped(percentage(row_rate))}</td>'
+            '</tr><tr><td colspan="2" style="padding:0 14px 12px">'
+            '<table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr>'
+            f'<td width="40%" valign="top" style="padding-right:8px"><div style="font-size:11px;color:#64748b">累计投入</div><div style="font-size:14px;color:#111827">{optional_number(row.get("TotalCostUsdt"))} USDT</div></td>'
+            f'<td width="40%" valign="top" style="padding-right:8px"><div style="font-size:11px;color:#64748b">当前市值</div><div style="font-size:14px;color:#111827">{optional_number(row.get("CurrentValueUsdt"))} USDT</div></td>'
+            f'<td width="20%" valign="top"><div style="font-size:11px;color:#64748b">定投</div><div style="font-size:14px;color:#111827">{escaped(row.get("Count") or 0)} 笔</div></td>'
+            '</tr></table></td></tr></table>'
         )
 
-    position_rows = []
+    position_cards = []
     for row in positions:
-        position_rows.append(
-            "<tr>"
-            f'<td class="left">{escaped(row.get("Category") or "-")}</td>'
-            f'<td class="left strong">{escaped(row.get("Asset") or "-")}</td>'
-            f'<td>{optional_number(row.get("Quantity"), 8)}</td>'
-            f'<td>{optional_number(row.get("ValueUsdt"))}</td>'
-            "</tr>"
+        position_cards.append(
+            '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" '
+            'style="width:100%;margin:0 0 10px;border:1px solid #e5e7eb;border-radius:6px;background:#ffffff">'
+            '<tr>'
+            f'<td style="padding:11px 14px 4px;font-size:15px;font-weight:700;color:#0f172a">{escaped(row.get("Asset") or "-")}</td>'
+            f'<td align="right" style="padding:11px 14px 4px;font-size:12px;color:#64748b">{escaped(row.get("Category") or "-")}</td>'
+            '</tr><tr>'
+            f'<td style="padding:2px 14px 11px;font-size:12px;color:#64748b">数量&nbsp; {optional_number(row.get("Quantity"), 8)}</td>'
+            f'<td align="right" style="padding:2px 14px 11px;font-size:14px;font-weight:700;color:#111827">{optional_number(row.get("ValueUsdt"))} USDT</td>'
+            '</tr></table>'
         )
 
     rate_note = "人民币估算暂不可用"
@@ -505,7 +513,7 @@ def report_to_html(context: dict[str, object] | None = None) -> str:
         "<style>",
         "*{box-sizing:border-box}",
         "body{margin:0;padding:24px;background:#eef2f7;color:#111827;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,'Microsoft YaHei',sans-serif;line-height:1.55;letter-spacing:0}",
-        ".wrap{width:100%;max-width:880px;margin:0 auto;background:#fff;border:1px solid #dbe3ef;border-radius:8px;overflow:hidden}",
+        ".wrap{width:100%;max-width:760px;margin:0 auto;background:#fff;border:1px solid #dbe3ef;border-radius:8px;overflow:hidden}",
         ".hero{background:#0f172a;color:#fff;padding:28px 32px}",
         ".eyebrow{margin:0 0 8px;color:#cbd5e1;font-size:13px}",
         ".total{margin:0;font-size:42px;line-height:1.1;font-weight:760}",
@@ -514,25 +522,25 @@ def report_to_html(context: dict[str, object] | None = None) -> str:
         ".meta span{display:inline-block;margin:0 16px 4px 0}",
         ".content{padding:24px 32px 32px}",
         ".cards{width:100%;border-collapse:separate;border-spacing:6px;margin:0 -6px 24px}",
-        ".card{width:25%;vertical-align:top;border:1px solid #e5e7eb;border-radius:8px;background:#fbfdff;padding:14px 16px}",
+        ".card{width:50%;vertical-align:top;border:1px solid #e5e7eb;border-radius:8px;background:#fbfdff;padding:14px 16px}",
         ".label{font-size:12px;color:#64748b;margin-bottom:6px}",
-        ".value{font-size:19px;line-height:1.3;font-weight:720;color:#0f172a;white-space:nowrap}",
-        ".sub{font-size:12px;color:#64748b;margin-top:3px;white-space:nowrap}",
+        ".value{font-size:18px;line-height:1.3;font-weight:720;color:#0f172a;word-break:break-word}",
+        ".sub{font-size:12px;color:#64748b;margin-top:3px;word-break:break-word}",
         ".positive{color:#047857!important}.negative{color:#b91c1c!important}",
         "h2{font-size:17px;line-height:1.4;margin:26px 0 12px;color:#111827}",
-        ".table-scroll{width:100%;overflow-x:auto}",
         ".data{width:100%;border-collapse:collapse;font-size:13px}",
-        ".data th,.data td{border-bottom:1px solid #e5e7eb;padding:10px 12px;text-align:right;white-space:nowrap}",
+        ".data th,.data td{border-bottom:1px solid #e5e7eb;padding:10px 12px;text-align:right}",
         ".data th{background:#f8fafc;color:#64748b;font-size:12px;font-weight:700}",
         ".data .left{text-align:left}.data .strong{font-weight:700;color:#0f172a}",
         ".foot{margin:26px 0 0;color:#64748b;font-size:12px}",
-        "@media(max-width:680px){body{padding:0}.wrap{border:0;border-radius:0}.hero{padding:24px 20px}.total{font-size:34px}.cny{font-size:19px}.content{padding:18px 14px 26px}.cards{display:block;margin:0 0 18px}.card{display:inline-block;width:48%;min-height:104px;margin:1%;padding:12px;white-space:normal}.value{font-size:17px}.data th,.data td{padding:9px 10px}}",
+        "@media(max-width:680px){body{padding:0!important}.wrap{border:0!important;border-radius:0!important}.hero{padding:22px 18px!important}.total{font-size:32px!important}.cny{font-size:18px!important}.content{padding:16px 12px 24px!important}.card{padding:11px 10px!important}.value{font-size:16px!important}.data th,.data td{padding:8px 6px!important;font-size:12px!important}}",
         "</style>",
         "</head>",
-        '<body><main class="wrap">',
-        '<section class="hero">',
+        '<body style="margin:0;padding:24px;background:#eef2f7;color:#111827;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Arial,Microsoft YaHei,sans-serif;line-height:1.55">',
+        '<main class="wrap" style="width:100%;max-width:760px;margin:0 auto;background:#ffffff;border:1px solid #dbe3ef;border-radius:8px;overflow:hidden">',
+        '<section class="hero" style="background:#0f172a;color:#ffffff;padding:28px 32px">',
         '<p class="eyebrow">当前账户总资产</p>',
-        f'<h1 class="total">{escaped(money_usdt(total_holding))}</h1>',
+        f'<h1 class="total" style="margin:0;font-size:40px;line-height:1.1;font-weight:760;color:#ffffff">{escaped(f"{total_holding:,.2f}")} <span style="font-size:18px;font-weight:600">USDT</span></h1>',
         f'<div class="cny">约 {escaped(money_cny(total_holding))}</div>',
         '<div class="meta">',
         f'<span>生成时间：{escaped(generated_at)}</span>',
@@ -540,27 +548,24 @@ def report_to_html(context: dict[str, object] | None = None) -> str:
         f'<span>成功定投：{record_count} 笔</span>',
         "</div>",
         "</section>",
-        '<section class="content">',
-        '<table role="presentation" class="cards"><tr>',
-        f'<td class="card"><div class="label">Simple Earn 活期</div><div class="value">{escaped(money_usdt(flexible_total))}</div><div class="sub">{escaped(money_cny(flexible_total))}</div></td>',
-        f'<td class="card"><div class="label">累计投入</div><div class="value">{escaped(money_usdt(total_cost))}</div><div class="sub">{escaped(money_cny(total_cost))}</div></td>',
-        f'<td class="card"><div class="label">定投当前市值</div><div class="value">{escaped(money_usdt(total_value))}</div><div class="sub">{escaped(money_cny(total_value))}</div></td>',
-        f'<td class="card"><div class="label">浮动盈亏</div><div class="value {pnl_class}">{escaped(pnl_text(total_pnl))}</div><div class="sub {pnl_class}">{escaped(percentage(total_pnl_rate))} / {escaped(money_cny(total_pnl))}</div></td>',
+        '<section class="content" style="padding:24px 32px 32px">',
+        '<table role="presentation" class="cards" width="100%" cellspacing="6" cellpadding="0" style="width:100%;margin:0 0 22px"><tr>',
+        f'<td class="card" width="50%" valign="top" style="width:50%;padding:14px 16px;border:1px solid #e5e7eb;border-radius:8px;background:#fbfdff"><div class="label" style="font-size:12px;color:#64748b;margin-bottom:6px">Simple Earn 活期</div><div class="value" style="font-size:18px;line-height:1.3;font-weight:700;color:#0f172a">{escaped(money_usdt(flexible_total))}</div><div class="sub" style="font-size:12px;color:#64748b;margin-top:3px">{escaped(money_cny(flexible_total))}</div></td>',
+        f'<td class="card" width="50%" valign="top" style="width:50%;padding:14px 16px;border:1px solid #e5e7eb;border-radius:8px;background:#fbfdff"><div class="label" style="font-size:12px;color:#64748b;margin-bottom:6px">累计投入</div><div class="value" style="font-size:18px;line-height:1.3;font-weight:700;color:#0f172a">{escaped(money_usdt(total_cost))}</div><div class="sub" style="font-size:12px;color:#64748b;margin-top:3px">{escaped(money_cny(total_cost))}</div></td>',
+        '</tr><tr>',
+        f'<td class="card" width="50%" valign="top" style="width:50%;padding:14px 16px;border:1px solid #e5e7eb;border-radius:8px;background:#fbfdff"><div class="label" style="font-size:12px;color:#64748b;margin-bottom:6px">定投当前市值</div><div class="value" style="font-size:18px;line-height:1.3;font-weight:700;color:#0f172a">{escaped(money_usdt(total_value))}</div><div class="sub" style="font-size:12px;color:#64748b;margin-top:3px">{escaped(money_cny(total_value))}</div></td>',
+        f'<td class="card" width="50%" valign="top" style="width:50%;padding:14px 16px;border:1px solid #e5e7eb;border-radius:8px;background:#fbfdff"><div class="label" style="font-size:12px;color:#64748b;margin-bottom:6px">浮动盈亏</div><div class="value {pnl_class}" style="font-size:18px;line-height:1.3;font-weight:700;color:{pnl_color}">{escaped(pnl_text(total_pnl))}</div><div class="sub {pnl_class}" style="font-size:12px;color:{pnl_color};margin-top:3px">{escaped(percentage(total_pnl_rate))} / {escaped(money_cny(total_pnl))}</div></td>',
         "</tr></table>",
         "<h2>资产分布</h2>",
-        '<div class="table-scroll"><table class="data"><thead><tr><th class="left">位置</th><th>USDT</th><th>人民币估算</th></tr></thead><tbody>',
+        '<table class="data" width="100%" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr><th class="left" style="padding:9px 8px;text-align:left;background:#f8fafc;color:#64748b">位置</th><th style="padding:9px 8px;text-align:right;background:#f8fafc;color:#64748b">USDT</th><th style="padding:9px 8px;text-align:right;background:#f8fafc;color:#64748b">人民币估算</th></tr></thead><tbody>',
         f'<tr><td class="left strong">Simple Earn 活期</td><td>{optional_number(flexible_total)}</td><td>{escaped(money_cny(flexible_total))}</td></tr>',
         f'<tr><td class="left strong">现货</td><td>{optional_number(spot_total)}</td><td>{escaped(money_cny(spot_total))}</td></tr>',
         f'<tr><td class="left strong">Simple Earn 定期</td><td>{optional_number(locked_total)}</td><td>{escaped(money_cny(locked_total))}</td></tr>',
-        "</tbody></table></div>",
+        "</tbody></table>",
         "<h2>按资产汇总</h2>",
-        '<div class="table-scroll"><table class="data"><thead><tr><th class="left">资产</th><th>笔数</th><th>累计投入</th><th>当前市值</th><th>浮动盈亏</th><th>盈亏比例</th></tr></thead><tbody>',
-        *asset_rows,
-        "</tbody></table></div>",
+        *asset_cards,
         "<h2>当前仓位明细</h2>",
-        '<div class="table-scroll"><table class="data"><thead><tr><th class="left">类别</th><th class="left">资产</th><th>数量</th><th>当前价值（USDT）</th></tr></thead><tbody>',
-        *position_rows,
-        "</tbody></table></div>",
+        *position_cards,
         f'<p class="foot">{escaped(rate_note)}。详细计算口径和完整字段见随信附上的 Markdown 报表。</p>',
         "</section></main></body></html>",
     ]
