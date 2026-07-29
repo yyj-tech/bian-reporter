@@ -69,6 +69,30 @@ def signed_query(base_url: str, api_key: str, api_secret: str, path: str, params
     return request_json(url, headers={"X-MBX-APIKEY": api_key})
 
 
+def signed_post(base_url: str, api_key: str, api_secret: str, path: str, params: dict[str, object]) -> object:
+    payload = {k: v for k, v in params.items() if v is not None and str(v) != ""}
+    payload["timestamp"] = int(time.time() * 1000)
+    query = urllib.parse.urlencode(payload)
+    signature = hmac.new(api_secret.encode("utf-8"), query.encode("utf-8"), hashlib.sha256).hexdigest()
+    body = f"{query}&signature={signature}".encode("ascii")
+    url = f"{base_url}{path}"
+    req = urllib.request.Request(
+        url,
+        data=body,
+        headers={
+            "X-MBX-APIKEY": api_key,
+            "Content-Type": "application/x-www-form-urlencoded",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        response_body = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"HTTP {exc.code} for {url}: {response_body}") from exc
+
+
 def public_query(base_url: str, path: str) -> object:
     return request_json(f"{base_url}{path}")
 
@@ -194,7 +218,51 @@ def asset_value_usdt(asset: str, quantity: float, prices: dict[str, float]) -> f
     return quantity * price
 
 
-def fetch_positions(base_url: str, api_key: str, api_secret: str, prices: dict[str, float]) -> tuple[list[dict], float, float, float]:
+def fetch_funding_positions(
+    base_url: str,
+    api_key: str,
+    api_secret: str,
+    prices: dict[str, float],
+) -> tuple[list[dict], float]:
+    balances = signed_post(
+        base_url,
+        api_key,
+        api_secret,
+        "/sapi/v1/asset/get-funding-asset",
+        {"needBtcValuation": "false", "recvWindow": 5000},
+    )
+    rows = []
+    total = 0.0
+    for balance in balances:
+        asset = balance["asset"]
+        quantity = sum(
+            float(balance.get(field, 0) or 0)
+            for field in ("free", "locked", "freeze", "withdrawing")
+        )
+        if quantity <= 0:
+            continue
+        value = asset_value_usdt(asset, quantity, prices)
+        if value is None:
+            print(f"Skipping Funding Wallet asset without a USDT price: {asset}", file=sys.stderr)
+            continue
+        total += value
+        rows.append(
+            {
+                "Category": "资金账户",
+                "Asset": asset,
+                "Quantity": quantity,
+                "ValueUsdt": value,
+            }
+        )
+    return rows, total
+
+
+def fetch_positions(
+    base_url: str,
+    api_key: str,
+    api_secret: str,
+    prices: dict[str, float],
+) -> tuple[list[dict], float, float, float, float]:
     account = signed_query(base_url, api_key, api_secret, "/api/v3/account", {"omitZeroBalances": "true", "recvWindow": 5000})
 
     rows = []
@@ -206,6 +274,9 @@ def fetch_positions(base_url: str, api_key: str, api_secret: str, prices: dict[s
             continue
         spot_total += value
         rows.append({"Category": "现货", "Asset": balance["asset"], "Quantity": qty, "ValueUsdt": value})
+
+    funding_rows, funding_total = fetch_funding_positions(base_url, api_key, api_secret, prices)
+    rows.extend(funding_rows)
 
     flexible_total = 0.0
     locked_total = 0.0
@@ -233,13 +304,14 @@ def fetch_positions(base_url: str, api_key: str, api_secret: str, prices: dict[s
             current += 1
 
     rows.sort(key=lambda row: row["ValueUsdt"], reverse=True)
-    return rows, spot_total, flexible_total, locked_total
+    return rows, spot_total, funding_total, flexible_total, locked_total
 
 
 def build_report(
     sample: dict,
     positions: list[dict],
     spot_total: float,
+    funding_total: float,
     flexible_total: float,
     locked_total: float,
     prices: dict[str, float],
@@ -288,7 +360,7 @@ def build_report(
         summary.append(row)
     summary.sort(key=lambda row: row["TotalCostUsdt"], reverse=True)
 
-    total_holding = spot_total + flexible_total + locked_total
+    total_holding = spot_total + funding_total + flexible_total + locked_total
     total_cost = sum(row["TotalCostUsdt"] for row in summary)
     total_value = sum(row["CurrentValueUsdt"] or 0 for row in summary)
     total_pnl = total_value - total_cost
@@ -308,6 +380,7 @@ def build_report(
         "record_count": len(records),
         "total_holding": total_holding,
         "spot_total": spot_total,
+        "funding_total": funding_total,
         "flexible_total": flexible_total,
         "locked_total": locked_total,
         "total_cost": total_cost,
@@ -329,6 +402,7 @@ def build_report(
         "|---|---:|---:|",
         f"| 账户总资产 | {total_holding:,.2f} | {cny(total_holding)} |",
         f"| Simple Earn 活期 | {flexible_total:,.2f} | {cny(flexible_total)} |",
+        f"| 资金账户 | {funding_total:,.2f} | {cny(funding_total)} |",
         f"| 现货 | {spot_total:,.2f} | {cny(spot_total)} |",
         f"| Simple Earn 定期 | {locked_total:,.2f} | {cny(locked_total)} |",
         "",
@@ -379,7 +453,7 @@ def build_report(
         "- 当前价使用 Binance 公开 ticker 行情，统一折算为 USDT。",
         "- 人民币金额按 USDT 近似 USD 后乘以 USD/CNY 汇率估算，仅用于快速阅读，不作为结算价格。",
         "- 浮动盈亏基于定投买入数量计算，不把 Simple Earn 利息增量纳入本次成本。",
-        "- 账户总仓位价值 = 现货 + Simple Earn 活期 + Simple Earn 定期，使用当前 ticker 折算为 USDT。",
+        "- 账户总仓位价值 = 现货 + 资金账户 + Simple Earn 活期 + Simple Earn 定期，使用当前 ticker 折算为 USDT。",
     ]
     REPORT_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(f"Enriched report written to {REPORT_PATH}")
@@ -428,6 +502,7 @@ def report_to_html(context: dict[str, object] | None = None) -> str:
     total_pnl = float(context.get("total_pnl") or 0)
     total_pnl_rate = float(context.get("total_pnl_rate") or 0)
     spot_total = float(context.get("spot_total") or 0)
+    funding_total = float(context.get("funding_total") or 0)
     flexible_total = float(context.get("flexible_total") or 0)
     locked_total = float(context.get("locked_total") or 0)
     usd_cny_rate = context.get("usd_cny_rate")
@@ -559,6 +634,7 @@ def report_to_html(context: dict[str, object] | None = None) -> str:
         "<h2>资产分布</h2>",
         '<table class="data" width="100%" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr><th class="left" style="padding:9px 8px;text-align:left;background:#f8fafc;color:#64748b">位置</th><th style="padding:9px 8px;text-align:right;background:#f8fafc;color:#64748b">USDT</th><th style="padding:9px 8px;text-align:right;background:#f8fafc;color:#64748b">人民币估算</th></tr></thead><tbody>',
         f'<tr><td class="left strong">Simple Earn 活期</td><td>{optional_number(flexible_total)}</td><td>{escaped(money_cny(flexible_total))}</td></tr>',
+        f'<tr><td class="left strong">资金账户</td><td>{optional_number(funding_total)}</td><td>{escaped(money_cny(funding_total))}</td></tr>',
         f'<tr><td class="left strong">现货</td><td>{optional_number(spot_total)}</td><td>{escaped(money_cny(spot_total))}</td></tr>',
         f'<tr><td class="left strong">Simple Earn 定期</td><td>{optional_number(locked_total)}</td><td>{escaped(money_cny(locked_total))}</td></tr>',
         "</tbody></table>",
@@ -583,8 +659,18 @@ def main() -> int:
     sample = fetch_auto_invest_history(base_url, api_key, api_secret, start_date, plan_types)
     prices = price_map(base_url)
     usd_cny_rate, usd_cny_source = fetch_usd_cny_rate()
-    positions, spot_total, flexible_total, locked_total = fetch_positions(base_url, api_key, api_secret, prices)
-    body = build_report(sample, positions, spot_total, flexible_total, locked_total, prices, usd_cny_rate, usd_cny_source)
+    positions, spot_total, funding_total, flexible_total, locked_total = fetch_positions(base_url, api_key, api_secret, prices)
+    body = build_report(
+        sample,
+        positions,
+        spot_total,
+        funding_total,
+        flexible_total,
+        locked_total,
+        prices,
+        usd_cny_rate,
+        usd_cny_source,
+    )
     subject = env("REPORT_EMAIL_SUBJECT") or f"币安定投成本和总仓位报表 {dt.datetime.now(ZoneInfo('Asia/Shanghai')).date()}"
     send_email(subject, body)
     return 0
