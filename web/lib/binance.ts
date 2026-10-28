@@ -1,5 +1,6 @@
 import "server-only";
 
+import { buysFromAutoInvest, buysFromSpotTrades, type BuyRecord } from "./cost";
 import { formatApr, shanghaiNow } from "./format";
 import { buildPortfolio, type Portfolio, type RawBalance, type RawEarn } from "./portfolio";
 import { signedParams } from "./sign";
@@ -275,4 +276,160 @@ export async function getPortfolio(fresh: boolean): Promise<Portfolio> {
 
 export function portfolioError(error: unknown): string {
   return explain(error);
+}
+
+const BUY_CACHE_MS = 10 * 60_000;
+const PLAN_TYPES = ["PORTFOLIO", "SINGLE", "INDEX"];
+const STABLE_ASSETS = new Set(["USDT", "FDUSD", "USDC", "BUSD"]);
+
+export type BuyHistory = {
+  buys: BuyRecord[];
+  warnings: string[];
+  startDate: string;
+  skippedOtherQuote: number;
+};
+
+type BuyCache = BuyHistory & { at: number; key: string };
+
+let buyCache: BuyCache | null = null;
+let buyPending: Promise<BuyHistory> | null = null;
+let buyPendingKey = "";
+
+function historyStart(): { ms: number; label: string } {
+  const label = process.env.AUTO_INVEST_START_DATE || "2026-01-01";
+  const parsed = Date.parse(`${label}T00:00:00Z`);
+  return { ms: Number.isFinite(parsed) ? parsed : Date.parse("2026-01-01T00:00:00Z"), label };
+}
+
+function asList(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value;
+  const record = asRecord(value);
+  if (!record) return [];
+  if (Array.isArray(record.list)) return record.list;
+  if (Array.isArray(record.rows)) return record.rows;
+  return [];
+}
+
+async function fetchAutoInvest(creds: Credentials, startMs: number): Promise<{ items: unknown[]; warnings: string[] }> {
+  const items: unknown[] = [];
+  const warnings: string[] = [];
+  const end = Date.now();
+  const windowMs = 30 * 24 * 60 * 60 * 1000;
+
+  await Promise.all(
+    PLAN_TYPES.map(async (planType) => {
+      let noted = false;
+      for (let cursor = startMs; cursor < end; cursor += windowMs) {
+        const windowEnd = Math.min(cursor + windowMs - 1, end);
+        for (let page = 1; page <= 20; page += 1) {
+          try {
+            const data = await getSigned(creds, "/sapi/v1/lending/auto-invest/history/list", {
+              startTime: String(cursor),
+              endTime: String(windowEnd),
+              current: String(page),
+              size: "100",
+              planType,
+              recvWindow: "5000",
+            });
+            const list = asList(data);
+            items.push(...list);
+            if (list.length < 100) break;
+          } catch (error) {
+            if (!noted) {
+              warnings.push(`定投历史（${planType}）有一段没读到。${explain(error)}`);
+              noted = true;
+            }
+            return;
+          }
+        }
+      }
+    }),
+  );
+
+  return { items, warnings };
+}
+
+async function fetchSpotBuys(creds: Credentials, assets: string[], startMs: number): Promise<{ buys: BuyRecord[]; warnings: string[] }> {
+  const buys: BuyRecord[] = [];
+  const warnings: string[] = [];
+  const symbols = assets.filter((asset) => !STABLE_ASSETS.has(asset));
+  let index = 0;
+
+  async function worker() {
+    while (index < symbols.length) {
+      const asset = symbols[index];
+      index += 1;
+      if (!asset) continue;
+      const collected: unknown[] = [];
+      let fromId = "";
+      for (let page = 0; page < 10; page += 1) {
+        const params: Record<string, string> = { symbol: `${asset}USDT`, limit: "1000", recvWindow: "5000" };
+        if (fromId) params.fromId = fromId;
+        else params.startTime = String(startMs);
+        try {
+          const data = await getSigned(creds, "/api/v3/myTrades", params);
+          const rows = asList(data);
+          collected.push(...rows);
+          if (rows.length < 1000) break;
+          const last = asRecord(rows[rows.length - 1]);
+          const lastId = last ? Number(last.id) : Number.NaN;
+          if (!Number.isFinite(lastId)) break;
+          fromId = String(lastId + 1);
+        } catch (error) {
+          const message = explain(error);
+          if (!message.includes("-1121")) warnings.push(`${asset} 的现货成交没读到。${message}`);
+          break;
+        }
+      }
+      buys.push(...buysFromSpotTrades(collected, asset));
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(4, symbols.length) }, () => worker()));
+  return { buys, warnings };
+}
+
+async function loadBuyHistory(assets: string[]): Promise<BuyHistory> {
+  const creds = credentials();
+  const start = historyStart();
+  const [autoResult, spotResult] = await Promise.all([
+    fetchAutoInvest(creds, start.ms),
+    fetchSpotBuys(creds, assets, start.ms),
+  ]);
+  const parsed = buysFromAutoInvest(autoResult.items);
+  const buys = [...parsed.buys, ...spotResult.buys].sort((a, b) => b.time - a.time || a.asset.localeCompare(b.asset));
+  const warnings = [...autoResult.warnings, ...spotResult.warnings];
+  if (parsed.skippedOtherQuote > 0) {
+    warnings.push(`有 ${parsed.skippedOtherQuote} 笔定投不是用 USDT 买的，没有计入成本。`);
+  }
+  return { buys, warnings, startDate: start.label, skippedOtherQuote: parsed.skippedOtherQuote };
+}
+
+export function parseBuyAssets(value: string | null): string[] {
+  if (!value) return [];
+  const assets = value
+    .split(",")
+    .map((item) => item.trim().toUpperCase())
+    .filter((item) => /^[A-Z0-9]{2,20}$/.test(item));
+  return [...new Set(assets)].slice(0, 40);
+}
+
+export async function getBuyHistory(assets: string[], fresh: boolean): Promise<BuyHistory> {
+  const key = assets.slice().sort().join(",");
+  if (!fresh && buyCache && buyCache.key === key && Date.now() - buyCache.at < BUY_CACHE_MS) {
+    return buyCache;
+  }
+  if (!fresh && buyPending && buyPendingKey === key) return buyPending;
+
+  buyPendingKey = key;
+  buyPending = loadBuyHistory(assets)
+    .then((data) => {
+      buyCache = { ...data, at: Date.now(), key };
+      return data;
+    })
+    .finally(() => {
+      buyPending = null;
+      buyPendingKey = "";
+    });
+  return buyPending;
 }

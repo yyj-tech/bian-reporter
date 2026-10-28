@@ -1,3 +1,4 @@
+import type { BuyRecord } from "./cost";
 import { buildPortfolio, type Portfolio } from "./portfolio";
 
 export function demoPortfolio(generatedAt: string): Portfolio {
@@ -25,4 +26,14 @@ export function demoPortfolio(generatedAt: string): Portfolio {
     ],
     locked: [{ asset: "BNB", amount: "0.8", detail: "30 天 · 年化 2.40%" }],
   });
+}
+
+export function demoBuys(): BuyRecord[] {
+  return [
+    { id: "btc-1", time: Date.parse("2026-03-02T02:00:00Z"), asset: "BTC", quantity: 0.01, costUsdt: 600, priceUsdt: 60_000, source: "组合定投" },
+    { id: "btc-2", time: Date.parse("2026-08-01T02:00:00Z"), asset: "BTC", quantity: 0.0062, costUsdt: 434, priceUsdt: 70_000, source: "组合定投" },
+    { id: "eth-1", time: Date.parse("2026-04-15T02:00:00Z"), asset: "ETH", quantity: 1.25, costUsdt: 3_750, priceUsdt: 3_000, source: "单币定投" },
+    { id: "sol-1", time: Date.parse("2026-06-20T02:00:00Z"), asset: "SOL", quantity: 6.5, costUsdt: 650, priceUsdt: 100, source: "组合定投" },
+    { id: "bnb-1", time: Date.parse("2026-05-10T02:00:00Z"), asset: "BNB", quantity: 0.8, costUsdt: 400, priceUsdt: 500, source: "现货" },
+  ];
 }

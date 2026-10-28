@@ -8,7 +8,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "tsx --test lib/portfolio.test.ts lib/format.test.ts lib/sign.test.ts"
+    "test": "tsx --test lib/portfolio.test.ts lib/format.test.ts lib/sign.test.ts lib/cost.test.ts"
   },
   "dependencies": {
     "next": "^15.5.6",

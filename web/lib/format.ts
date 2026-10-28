@@ -39,6 +39,47 @@ export function formatCny(usdt: number, rate: number | null): string {
   return `≈ ¥${amount}`;
 }
 
+export function formatPrice(value: number | null): string {
+  if (value == null || !Number.isFinite(value)) return "-";
+  const abs = Math.abs(value);
+  if (abs >= 1) {
+    return value.toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: abs >= 100 ? 2 : 4,
+    });
+  }
+  return value.toLocaleString("en-US", { maximumFractionDigits: 8 });
+}
+
+export function formatSignedUsdt(value: number | null): string {
+  if (value == null || !Number.isFinite(value)) return "-";
+  const text = formatUsdt(value);
+  return value > 0 ? `+${text}` : text;
+}
+
+export function formatSignedPct(value: number | null): string {
+  if (value == null || !Number.isFinite(value)) return "";
+  const sign = value > 0 ? "+" : "";
+  return `${sign}${value.toFixed(2)}%`;
+}
+
+export function formatShanghaiParts(ms: number): { date: string; time: string } {
+  const parts = new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date(ms));
+  const pick = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? "";
+  return {
+    date: `${pick("year")}-${pick("month")}-${pick("day")}`,
+    time: `${pick("hour")}:${pick("minute")}`,
+  };
+}
+
 export function formatPct(part: number | null, total: number): string {
   if (part == null || !(total > 0)) return "";
   return `${((part / total) * 100).toFixed(1)}%`;

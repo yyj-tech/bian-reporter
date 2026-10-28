@@ -252,6 +252,48 @@ input[type="password"],
 
 .asset b { font-size: 16px; }
 
+.asset-name {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 16px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.hero-pnl {
+  margin: 10px 0 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.hero-pnl span {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.pnl-up { color: var(--ok); }
+.pnl-down { color: var(--danger); }
+
+.day {
+  margin: 16px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.buy {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.buy .secondary { display: block; margin-top: 3px; }
+
 .qty {
   margin-top: 3px;
   font-size: 14px;
